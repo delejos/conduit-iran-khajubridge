@@ -11,3 +11,8 @@ data/
 
 # System-specific
 /etc/khajubridge/
+
+# Editor swap files
+*.swp
+*.swo
+*.swx
