@@ -1,21 +1,95 @@
-# KhajuBridge
+# KhajuBridge: A Linux-based Firewall Layer for Psiphon Conduit
 
-KhajuBridge is a Linux-based firewall layer for Psiphon Conduit that enables region-restricted access using nftables. It mirrors the behavior of an existing Windows firewall implementation by allowing global TCP connectivity while restricting UDP traffic to a configurable region using CIDR-based filtering. Both IPv4 and IPv6 are supported.
+KhajuBridge is a Linux-based firewall layer for **Psiphon Conduit** that enables region-restricted access using `nftables`. 
 
-KhajuBridge provides a simple and transparent way to apply region-based network restrictions to Psiphon Conduit on Linux systems. It is designed as a lightweight wrapper around nftables and does not modify Conduit itself. All filtering is applied at the firewall level and can be safely enabled, updated, or disabled.
+It mirrors the behavior of existing Windows firewall implementations by allowing global TCP connectivity while restricting UDP traffic to a configurable region using CIDR-based filtering. Both IPv4 and IPv6 are fully supported.
 
-The project operates using a straightforward workflow: first, a script fetches IPv4 and IPv6 CIDR ranges for a specific region from public sources; second, an nftables ruleset defines how traffic should be handled, allowing TCP traffic to Conduit ports globally while restricting UDP traffic to the configured region and leaving all other traffic unaffected; finally, a helper script applies the rules and populates nftables sets atomically, allowing safe re-application and updates without interrupting existing connections.
+---
 
-Features include region-restricted access using CIDR-based filtering, IPv4 and IPv6 support, efficient updates via nftables sets, safe re-runs at any time, no modification or patching of Psiphon Conduit, and a design intended for Debian-based Linux systems.
+## 🚀 Overview
 
-Repository structure consists of scripts for fetching CIDR lists and applying firewall rules, an nftables ruleset defining the base filtering logic, optional systemd units for future automation, and this README file.
+KhajuBridge provides a simple and transparent way to apply region-based network restrictions to Psiphon Conduit on Linux systems. 
 
-Requirements are a Linux system with nftables support, Debian 11 / 12 or a compatible distribution, root or sudo privileges, and Psiphon Conduit installed and running.
+The project is designed as a lightweight wrapper around **nftables** and does not modify Conduit itself. All filtering is applied at the firewall level and can be safely enabled, updated, or disabled.
 
-Quick start (manual): install dependencies with `sudo apt install nftables curl`, fetch region CIDR ranges using `sudo ./scripts/update_region_cidrs.sh`, apply firewall rules with `sudo ./scripts/apply_firewall.sh`, and verify the rules using `sudo nft list table inet khajubridge`.
+---
 
-Currently, KhajuBridge supports a normal mode where TCP traffic is allowed globally and UDP traffic is restricted to the configured region. Future versions may introduce a strict mode where both TCP and UDP traffic are region-restricted.
+## ⚙️ How It Works
 
-Safety notes: KhajuBridge only affects traffic matching the configured Conduit ports; other services on the system are not modified; CIDR lists can change over time and should be updated regularly; always test firewall rules on non-critical systems before production use.
+KhajuBridge follows a three-step model:
 
-This project is inspired by an existing Windows-based firewall implementation for Psiphon Conduit and adapts the same core ideas to Linux using nftables.
+1.  **Fetch Region CIDR Ranges**: A script downloads IPv4 and IPv6 CIDR ranges for a specific region from public sources.
+2.  **Define Firewall Rules**: An `nftables` ruleset defines traffic handling:
+    * **TCP** traffic to Conduit ports is allowed **globally**.
+    * **UDP** traffic to Conduit ports is **restricted** to the configured region.
+    * All other traffic remains unaffected.
+3.  **Apply Rules Safely**: A helper script loads the rules and populates nftables sets atomically, allowing for updates without interrupting existing connections.
+
+---
+
+## ✨ Features
+
+* **Region-Restricted Access**: CIDR-based filtering for precise control.
+* **Dual-Stack Support**: Supports both IPv4 and IPv6.
+* **Performance**: Uses `nftables` sets for high-efficiency lookups.
+* **Non-Invasive**: Does not modify or patch Psiphon Conduit.
+* **Distro Friendly**: Designed for Debian-based Linux systems (Debian 11/12, etc.).
+
+---
+
+## 📂 Repository Structure
+
+```text
+KhajuBridge/
+├─ scripts/
+│  ├─ update_region_cidrs.sh    # Fetches region CIDR lists
+│  └─ apply_firewall.sh         # Applies nftables rules and CIDRs
+├─ nftables/
+│  └─ conduit-region.nft        # Base nftables ruleset
+├─ systemd/                     # systemd units (optional / future)
+└─ README.md
+```text
+
+## 🛠️ Requirements
+Linux system with nftables support.
+
+Debian 11 / 12 or compatible distribution.
+
+Root or sudo privileges.
+
+Psiphon Conduit installed and running.
+
+##⚡ Quick Start (Manual)
+
+Install dependencies:
+
+Bash
+sudo apt install nftables curl
+Fetch region CIDR ranges:
+
+Bash
+sudo ./scripts/update_region_cidrs.sh
+Apply firewall rules:
+
+Bash
+sudo ./scripts/apply_firewall.sh
+Verify rules:
+
+Bash
+sudo nft list table inet khajubridge
+
+## 🛡️ Safety & Modes
+Currently Supported:
+Normal Mode: TCP traffic is allowed globally; UDP traffic is restricted to the configured region.
+
+Future versions may introduce a Strict Mode where both TCP and UDP are region-restricted.
+
+## Notes:
+KhajuBridge only affects traffic matching the configured Conduit ports.
+
+CIDR lists change over time; regular updates via the provided script are recommended.
+
+Always test firewall rules on non-critical systems before production use.
+
+## 📝 Credits
+This project is inspired by existing Windows-based firewall implementations for Psiphon Conduit and adapts those core principles for the Linux ecosystem using nftables.
