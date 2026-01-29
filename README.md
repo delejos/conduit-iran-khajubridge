@@ -35,20 +35,6 @@ KhajuBridge follows a three-step model:
 * **Non-Invasive**: Does not modify or patch Psiphon Conduit.
 * **Distro Friendly**: Designed for Debian-based Linux systems (Debian 11/12, etc.).
 
----
-
-## 📂 Repository Structure
-
-```text
-KhajuBridge/
-├─ scripts/
-│  ├─ update_region_cidrs.sh    # Fetches region CIDR lists
-│  └─ apply_firewall.sh         # Applies nftables rules and CIDRs
-├─ nftables/
-│  └─ conduit-region.nft        # Base nftables ruleset
-├─ systemd/                     # systemd units (optional / future)
-└─ README.md
-```text
 
 ---
 
