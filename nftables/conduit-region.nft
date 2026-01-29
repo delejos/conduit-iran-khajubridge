@@ -1,0 +1,78 @@
+#!/usr/sbin/nft -f
+
+# KhajuBridge nftables ruleset (Normal mode)
+# - TCP to Conduit ports: allowed globally
+# - UDP to Conduit ports: allowed only from @region4/@region6
+# - Other traffic: unchanged
+
+table inet khajubridge {
+
+  #
+  # Region CIDR sets (filled/updated by scripts later)
+  #
+  set region4 {
+    type ipv4_addr
+    flags interval
+    elements = { }
+  }
+
+  set region6 {
+    type ipv6_addr
+    flags interval
+    elements = { }
+  }
+
+  #
+  # DNS allowlist (optional)
+  #
+  set dns4 {
+    type ipv4_addr
+    elements = {
+      8.8.8.8, 8.8.4.4,
+      1.1.1.1, 1.0.0.1,
+      9.9.9.9, 149.112.112.112
+    }
+  }
+
+  set dns6 {
+    type ipv6_addr
+    elements = {
+      2001:4860:4860::8888, 2001:4860:4860::8844,
+      2606:4700:4700::1111, 2606:4700:4700::1001,
+      2620:fe::fe, 2620:fe::9
+    }
+  }
+
+  #
+  # Conduit ports (CHANGE THESE after you confirm Conduit’s ports)
+  #
+  define CONDUIT_TCP_PORTS = { 443 }
+  define CONDUIT_UDP_PORTS = { 443 }
+
+  chain input {
+    type filter hook input priority 0;
+    policy accept;
+
+    # Always allow loopback and established connections
+    iif lo accept
+    ct state established,related accept
+
+    # (Optional) Allow DNS to known resolvers
+    ip daddr @dns4 udp dport 53 accept
+    ip daddr @dns4 tcp dport 53 accept
+    ip6 daddr @dns6 udp dport 53 accept
+    ip6 daddr @dns6 tcp dport 53 accept
+
+    # ---------- Conduit rules ----------
+    # UDP: allow only from region CIDRs, drop the rest (for those ports)
+    udp dport $CONDUIT_UDP_PORTS ip saddr @region4 accept
+    udp dport $CONDUIT_UDP_PORTS ip6 saddr @region6 accept
+    udp dport $CONDUIT_UDP_PORTS drop
+
+    # TCP: allowed globally (Normal mode)
+    tcp dport $CONDUIT_TCP_PORTS accept
+
+    # Everything else remains unchanged
+    accept
+  }
+}
