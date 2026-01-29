@@ -4,6 +4,16 @@ A Linux Firewall Layer for Psiphon Conduit
 KhajuBridge is a Linux-native firewall layer for Psiphon Conduit that enables region-restricted networking using nftables and systemd cgroup scoping.
 
 It mirrors the behavior of existing Windows firewall deployments by allowing TCP globally while restricting UDP traffic to approved regions, without modifying Conduit itself.
+## Requirements / Prerequisites
+
+KhajuBridge is a firewall wrapper (scripts + nftables rules), not a compiled build. You need:
+
+- A Linux system that uses **systemd** and supports **nftables**
+- **sudo/root** access (to load nftables rules and manage `/etc/khajubridge`)
+- **Psiphon Conduit installed and running as a systemd service**
+  - default expected unit name: `conduit.service`
+- `curl` (used by `scripts/update_region_cidrs.sh` to fetch CIDR lists)
+
 
 ――――――――――――――――――――――――――――――
 
