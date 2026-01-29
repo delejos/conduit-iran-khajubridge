@@ -54,3 +54,38 @@ KhajuBridge/
 │  └─ conduit-region.nft       # Base nftables ruleset
 ├─ systemd/                    # systemd units (optional / future)
 └─ README.md
+
+Requirements:
+- Linux system with nftables support
+- Debian 11 / 12 or compatible distribution
+- Root or sudo privileges
+- Psiphon Conduit installed and running
+
+Quick Start (Manual):
+Install dependencies:
+sudo apt install nftables curl
+
+Fetch region CIDR ranges:
+sudo ./scripts/update_region_cidrs.sh
+
+Apply firewall rules:
+sudo ./scripts/apply_firewall.sh
+
+Verify rules:
+sudo nft list table inet khajubridge
+
+Modes:
+Currently supported:
+- Normal mode: TCP traffic is allowed globally, while UDP traffic is restricted to the configured region.
+
+Future versions may introduce a strict mode where both TCP and UDP traffic are region-restricted.
+
+Safety Notes:
+- KhajuBridge only affects traffic matching the configured Conduit ports.
+- Other services on the system are not modified.
+- CIDR lists can change over time; regular updates are recommended.
+- Always test firewall rules on non-critical systems before production use.
+
+Credits:
+This project is inspired by an existing Windows-based firewall implementation for Psiphon Conduit and adapts the same core ideas to Linux using nftables.
+
