@@ -50,6 +50,8 @@ KhajuBridge/
 └─ README.md
 ```text
 
+---
+
 ## 🛠️ Requirements
 Linux system with nftables support.
 
@@ -58,6 +60,9 @@ Debian 11 / 12 or compatible distribution.
 Root or sudo privileges.
 
 Psiphon Conduit installed and running.
+
+---
+
 
 ##⚡ Quick Start (Manual)
 
@@ -78,6 +83,8 @@ Verify rules:
 Bash
 sudo nft list table inet khajubridge
 
+---
+
 ## 🛡️ Safety & Modes
 Currently Supported:
 Normal Mode: TCP traffic is allowed globally; UDP traffic is restricted to the configured region.
@@ -90,6 +97,8 @@ KhajuBridge only affects traffic matching the configured Conduit ports.
 CIDR lists change over time; regular updates via the provided script are recommended.
 
 Always test firewall rules on non-critical systems before production use.
+
+---
 
 ## 📝 Credits
 This project is inspired by existing Windows-based firewall implementations for Psiphon Conduit and adapts those core principles for the Linux ecosystem using nftables.
