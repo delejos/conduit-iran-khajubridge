@@ -29,6 +29,13 @@ It is optional and not required to use KhajuBridge.
 
 ---
 
+## Screenshot
+
+
+
+![KhajuBridge Web Console](screenshots/dashboard.png)
+
+
 ## Configuration
 
 The console is configured via an environment file:
