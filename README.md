@@ -32,7 +32,7 @@ The firewall can be safely applied, updated, or removed at any time.
 
 ⚙️ How It Works
 
-## Optional Web Console
+Optional Web Console
 
 KhajuBridge includes an optional, lightweight web console for local monitoring and basic operations
 (firewall apply, CIDR updates, Conduit status).
