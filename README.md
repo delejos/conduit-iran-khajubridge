@@ -133,6 +133,18 @@ sudo journalctl -u conduit.service -n 20 --no-pager
 After cloning the repository, ensure scripts are executable:
 chmod +x scripts/*.sh
 
+## Security & Operational Safety
+
+⚠️ **Important:** This project interacts with system-level networking and firewall components.
+
+- Review all changes carefully before applying them.
+- Test updates in a non-production or isolated environment first.
+- Ensure you have console or out-of-band access before applying firewall changes remotely.
+
+Please do **not** include secrets, personal information, or live system data in issues or pull requests.  
+See [`SECURITY.md`](SECURITY.md) for responsible disclosure guidelines.
+
+
 ――――――――――――――――――――――――――――――
 
 🛡️ Safety & Modes
