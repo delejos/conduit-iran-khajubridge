@@ -33,7 +33,6 @@ table inet khajubridge {
     policy accept;
 
     iif lo accept
-    ct state established,related accept
 
     # Allow UDP packets reaching Conduit-owned sockets from Iran (IPv4/IPv6)
     meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip  saddr @region_ipv4 counter accept
@@ -44,6 +43,10 @@ table inet khajubridge {
 
     # Drop TCP packets reaching Conduit-owned sockets from everywhere else
     meta l4proto tcp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH counter drop
+
+    # Conntrack LAST — must not bypass socket filtering
+
+    ct state established,related accept
   }
 
   #
