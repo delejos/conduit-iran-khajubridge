@@ -25,7 +25,7 @@ KhajuBridge is specifically designed to operate under Iranian network conditions
 🚀 Overview
 
 KhajuBridge provides a transparent, non-invasive way to apply region-based network controls to Psiphon Conduit on Linux systems.
-
+KhajuBridge improves Conduit behavior under Iranian network conditions but does not, by itself, provide strict Iran-only exclusivity. Optional deployment layers can be used to enforce stronger regional isolation when required.
 Instead of patching or wrapping Conduit, KhajuBridge enforces policy entirely at the firewall level. Rules are scoped specifically to the Conduit process using its systemd cgroup, ensuring:
 
 •	No port-based assumptions
@@ -166,6 +166,54 @@ Notes
 
 ――――――――――――――――――――――――――――――
 
+🌍 Deployment Options
+
+KhajuBridge is intentionally designed as a layered system. Each layer addresses a different class of operational requirement and can be used independently or together.
+
+---
+
+### Layer 1 — Process-Scoped Traffic Shaping (Default)
+
+This is the core KhajuBridge model and the default mode of operation.
+
+This layer:
+
+• Improves Conduit reliability under Iranian network conditions  
+• Reduces wasted or ineffective UDP traffic  
+• Mirrors Psiphon’s existing Windows firewall behavior  
+• Applies policy at the firewall level without modifying Conduit  
+• Uses systemd cgroup scoping instead of ports or UIDs  
+
+This mode is safe, portable, and non-invasive, and is suitable for most deployments.
+
+Layer 1 remains the default and recommended starting point.
+
+---
+
+### Layer 2 — Network Identity Isolation (Option A)
+
+Layer 2 adds strict regional exclusivity by introducing a dedicated network identity for Conduit.
+
+This layer:
+
+• Makes “Iran-only” a hard, enforceable property  
+• Gives Conduit a distinct local IP identity  
+• Prevents accidental or structural bypass  
+• Enforces policy at the network-identity level  
+
+Because Conduit does not bind to a specific IP or port, this layer is implemented using:
+
+• Source NAT (SNAT)  
+• A dedicated local IP  
+• Firewall rules scoped to that IP  
+
+Layer 2 is stronger and more restrictive, and is intended for deployments where strict Iran-only enforcement is required.
+
+See: `docs/OPTION_A_DEDICATED_IP.md`
+
+
+――――――――――――――――――――――――――――――
+
 🧠 Design Notes
 
 •	Outbound-only: Conduit is outbound-only; rules are applied in the `OUTPUT` hook (not `INPUT`).
@@ -174,6 +222,8 @@ Notes
 •	UDP allowlist: UDP is restricted using nftables CIDR sets (`region_ipv4`, `region_ipv6`).
 •	TCP global: TCP is unrestricted to match Windows firewall-style behavior.
 •	No hardcoding: cgroup IDs are resolved dynamically at apply time.
+• Dedicated-IP deployments may additionally use SNAT to enforce network-layer identity (see Deployment Options).
+
 
 ――――――――――――――――――――――――――――――
 
