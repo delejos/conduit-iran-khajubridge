@@ -220,6 +220,38 @@ func lanOnly(next http.Handler) http.Handler {
 	})
 }
 
+// Assurance is intentionally read-only right now.
+// Later you can wire these values to a real source (file or endpoint) without changing the UI layout.
+type Assurance struct {
+	EnforcementStatus string // ON/OFF/UNKNOWN
+	EnforcementMode   string // dual/ipv4/ipv6/unknown
+	LastAppliedUTC    string // timestamp or "Unknown"
+	RulesetHash       string // short hash or "Unknown"
+	CIDRSource        string // RIPE/ipdeny/manual/Unknown
+}
+
+func getAssurance() Assurance {
+	// UI-only placeholders for now (no firewall/scripts touched).
+	return Assurance{
+		EnforcementStatus: "UNKNOWN",
+		EnforcementMode:   "unknown",
+		LastAppliedUTC:    "Unknown",
+		RulesetHash:       "Unknown",
+		CIDRSource:        "Unknown",
+	}
+}
+
+func statusDotClass(status string) string {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "ON", "ACTIVE", "ENABLED":
+		return "good"
+	case "OFF", "INACTIVE", "DISABLED":
+		return "bad"
+	default:
+		return "unknown"
+	}
+}
+
 var page = template.Must(template.New("page").Parse(`
 <!doctype html>
 <html>
@@ -232,7 +264,7 @@ var page = template.Must(template.New("page").Parse(`
 <style>
 :root{
  --bg:#0b0f14;--panel:#111826cc;--panel2:#0f1623cc;--border:#243041;
- --text:#e7eef8;--muted:#9db0c7;--good:#37d67a;
+ --text:#e7eef8;--muted:#9db0c7;--good:#37d67a;--bad:#e25555;--unk:#8a98ad;
  --shadow:0 18px 40px rgba(0,0,0,.45);--r:16px;
 }
 *{box-sizing:border-box}
@@ -259,24 +291,22 @@ h1{font-size:18px;margin:0}
  background:rgba(0,0,0,.25);font-size:12px;color:var(--muted)}
 .dot{width:10px;height:10px;border-radius:50%}
 .dot.good{background:var(--good)}
+.dot.bad{background:var(--bad)}
+.dot.unknown{background:var(--unk)}
 .section{color:var(--muted);font-size:12px;letter-spacing:.12em;
  text-transform:uppercase;margin:14px 0 10px}
-.btnRow{display:flex;gap:10px;flex-wrap:wrap}
-button{
- border:1px solid var(--border);background:rgba(0,0,0,.28);
- color:var(--text);padding:10px 12px;border-radius:14px;cursor:pointer
-}
+.help{color:rgba(157,176,199,.75);font-size:12px;line-height:1.35;margin:-6px 0 10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .card{
  border:1px solid var(--border);background:rgba(0,0,0,.25);
  border-radius:var(--r);padding:12px 14px
 }
 .k{color:var(--muted);font-size:12px}
- .tagline{margin-top:6px;color:rgba(231,238,248,.72);font-size:12px;line-height:1.35;max-width:52ch}
- .sidebarFooter{margin-top:auto;padding-top:14px;color:rgba(231,238,248,.55);font-size:12px}
- .sfTitle{letter-spacing:.02em;margin-bottom:6px}
- .sfLink{color:rgba(157,176,199,.85);text-decoration:none;font-size:12px}
- .sfLink:hover{color:rgba(231,238,248,.9);text-decoration:underline}
+.tagline{margin-top:6px;color:rgba(231,238,248,.72);font-size:12px;line-height:1.35;max-width:52ch}
+.sidebarFooter{margin-top:auto;padding-top:14px;color:rgba(231,238,248,.55);font-size:12px}
+.sfTitle{letter-spacing:.02em;margin-bottom:6px}
+.sfLink{color:rgba(157,176,199,.85);text-decoration:none;font-size:12px}
+.sfLink:hover{color:rgba(231,238,248,.9);text-decoration:underline}
 .v{font-size:20px;font-weight:650;margin-top:4px}
 .logs{margin-top:14px;border:1px solid var(--border);
  background:rgba(0,0,0,.35);border-radius:var(--r);overflow:hidden}
@@ -284,6 +314,18 @@ button{
  padding:10px 12px;border-bottom:1px solid var(--border)}
 pre{margin:0;padding:12px;font-size:12px;color:#b9f6c6;
  font-family:ui-monospace,monospace;white-space:pre-wrap}
+
+/* Assurance */
+.assurance{display:flex;flex-direction:column;gap:6px}
+.kv{
+ display:flex;justify-content:space-between;align-items:center;gap:12px;
+ padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)
+}
+.kv:last-child{border-bottom:none}
+.kv .key{font-size:12px;opacity:.7}
+.kv .val{font-size:12px;display:inline-flex;align-items:center;gap:8px;text-align:right}
+.status{font-weight:650;letter-spacing:.2px}
+
 @media(max-width:900px){.app{grid-template-columns:1fr}}
 </style>
 </head>
@@ -300,17 +342,14 @@ pre{margin:0;padding:12px;font-size:12px;color:#b9f6c6;
   Loading status…
  </div>
 
- <div class="section">Actions</div>
- <div class="btnRow">
-  <button hx-post="/action/update-cidrs" hx-target="#logbox">Update CIDRs</button>
-  <button hx-post="/action/apply" hx-target="#logbox">Apply Firewall</button>
-  <button hx-get="/logs" hx-target="#logbox">Show Logs</button>
+ <div id="assurance" hx-get="/assurance" hx-trigger="load, every 10s">
+  Loading assurance…
  </div>
 
-  <div class="sidebarFooter">
-   <div class="sfTitle">KhajuBridge · Open source</div>
-   <a class="sfLink" href="https://github.com/delejos/KhajuBridge" target="_blank" rel="noopener">github.com/delejos/KhajuBridge</a>
-  </div>
+ <div class="sidebarFooter">
+  <div class="sfTitle">KhajuBridge · Open source</div>
+  <a class="sfLink" href="https://github.com/delejos/KhajuBridge" target="_blank" rel="noopener">github.com/delejos/KhajuBridge</a>
+ </div>
 
 </aside>
 
@@ -319,7 +358,7 @@ pre{margin:0;padding:12px;font-size:12px;color:#b9f6c6;
   <div>
    <div class="k">System Overview</div>
    <div class="k">KhajuBridge + Conduit</div>
-     <div class="tagline">Powered by Conduit — built with difficult networks in mind.</div>
+   <div class="tagline">Powered by Conduit — built with difficult networks in mind.</div>
   </div>
  </div>
 
@@ -348,6 +387,42 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<b>Conduit:</b> %s", state)
 }
 
+func assuranceHandler(w http.ResponseWriter, r *http.Request) {
+	a := getAssurance()
+	dotClass := statusDotClass(a.EnforcementStatus)
+
+	fmt.Fprintf(w, `
+<div class="section">Assurance</div>
+<div class="help">Read-only indicators of active enforcement state.</div>
+<div class="card">
+ <div class="assurance">
+  <div class="kv">
+   <div class="key">Enforcement</div>
+   <div class="val">
+    <span class="dot %s"></span>
+    <span class="status">%s</span>
+   </div>
+  </div>
+
+  <div class="kv">
+   <div class="key">Last firewall apply</div>
+   <div class="val">%s</div>
+  </div>
+
+  <div class="kv">
+   <div class="key">Ruleset hash</div>
+   <div class="val">%s</div>
+  </div>
+
+  <div class="kv">
+   <div class="key">CIDR source</div>
+   <div class="val">%s</div>
+  </div>
+ </div>
+</div>
+`, dotClass, template.HTMLEscapeString(a.EnforcementStatus), template.HTMLEscapeString(a.LastAppliedUTC), template.HTMLEscapeString(a.RulesetHash), template.HTMLEscapeString(a.CIDRSource))
+}
+
 func overviewHandler(w http.ResponseWriter, r *http.Request) {
 	uptime := readUptime()
 	cpu := readCPULoadPct()
@@ -361,26 +436,15 @@ func overviewHandler(w http.ResponseWriter, r *http.Request) {
  <div class="card"><div class="k">RAM</div><div class="v">%d / %d MiB</div></div>
 </div>
 
-  <div class="grid">
-   <div class="card"><div class="k">Active Users</div><div class="v">%d</div></div>
-   <div class="card"><div class="k">Connecting</div><div class="v">%d</div></div>
-   <div class="card"><div class="k">Up Speed</div><div class="v">%s</div></div>
-   <div class="card"><div class="k">Down Speed</div><div class="v">%s</div></div>
-   <div class="card"><div class="k">Total Upload</div><div class="v">%s</div></div>
-     <div class="card"><div class="k">Total Download</div><div class="v">%s</div></div>
-  </div>
-
+<div class="grid">
+ <div class="card"><div class="k">Active Users</div><div class="v">%d</div></div>
+ <div class="card"><div class="k">Connecting</div><div class="v">%d</div></div>
+ <div class="card"><div class="k">Up Speed</div><div class="v">%s</div></div>
+ <div class="card"><div class="k">Down Speed</div><div class="v">%s</div></div>
+ <div class="card"><div class="k">Total Upload</div><div class="v">%s</div></div>
+ <div class="card"><div class="k">Total Download</div><div class="v">%s</div></div>
+</div>
 `, uptime, cpu, used, total, cs.Connected, cs.Connecting, cs.UpBps, cs.DownBps, cs.UpTotal, cs.DownTotal)
-}
-
-func actionUpdateCIDRs(w http.ResponseWriter, r *http.Request) {
-	out, _ := run("sudo", khajuScripts+"/update_region_cidrs.sh")
-	fmt.Fprint(w, out)
-}
-
-func actionApply(w http.ResponseWriter, r *http.Request) {
-	out, _ := run("sudo", khajuScripts+"/apply_firewall.sh")
-	fmt.Fprint(w, out)
 }
 
 func logsHandler(w http.ResponseWriter, r *http.Request) {
@@ -432,9 +496,8 @@ func main() {
 		_ = page.Execute(w, nil)
 	})
 	mux.HandleFunc("/status", statusHandler)
+	mux.HandleFunc("/assurance", assuranceHandler)
 	mux.HandleFunc("/overview", overviewHandler)
-	mux.HandleFunc("/action/update-cidrs", actionUpdateCIDRs)
-	mux.HandleFunc("/action/apply", actionApply)
 	mux.HandleFunc("/logs", logsHandler)
 
 	fmt.Println("Listening on", listenAddr)
