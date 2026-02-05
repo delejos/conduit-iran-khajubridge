@@ -295,6 +295,7 @@ h1{font-size:18px;margin:0}
 .dot.unknown{background:var(--unk)}
 .section{color:var(--muted);font-size:12px;letter-spacing:.12em;
  text-transform:uppercase;margin:14px 0 10px}
+.help{color:rgba(157,176,199,.75);font-size:12px;line-height:1.35;margin:-6px 0 10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .card{
  border:1px solid var(--border);background:rgba(0,0,0,.25);
@@ -392,6 +393,7 @@ func assuranceHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, `
 <div class="section">Assurance</div>
+<div class="help">Read-only indicators of active enforcement state.</div>
 <div class="card">
  <div class="assurance">
   <div class="kv">
