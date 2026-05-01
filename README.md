@@ -1,6 +1,47 @@
 ## Conduit for Iran – KhajuBridge
 
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Linux-orange)
+
 ## TL;DR: This is **not** a plug-and-play VPN firewall, and all changes require explicit operator action.
+
+---
+
+## What's new in v2.0
+
+v2.0 is a significant overhaul focused on correctness, reliability, and operational visibility.
+
+**Critical bug fix**
+A rule-ordering bug in the nftables INPUT chain was silently dropping all inbound TCP
+replies to Conduit's own outbound connections, breaking TCP connectivity. This is now fixed.
+
+**Reliability**
+- CIDR fetches are now atomic — existing files are never overwritten unless the new
+  data passes a minimum-count check. A second fallback source is tried if the first fails.
+- The firewall is automatically re-applied after every Conduit restart via a systemd
+  drop-in (the cgroup ID changes on each start, which previously left stale rules active).
+- A weekly systemd timer (`khajubridge-cidr-refresh`) keeps Iran IP ranges up to date.
+
+**Strictness**
+- Rate limiting added to the INPUT chain to protect against UDP abuse from within Iran CIDRs.
+- Named nftables counters track Iran-accepted vs non-Iran-dropped traffic separately.
+- Option A (dedicated IP enforcement) now uses `meta cgroup` SNAT instead of UID-based
+  matching, which broke when Conduit ran as root. Full IPv6 support added.
+- `apply_option_a.sh` replaces the previous manual-command documentation.
+
+**Operational**
+- One-step multi-distro installer (`install.sh`) handles apt / dnf / pacman / apk.
+- Web console rewritten: live assurance panel reads `state.json` + a live `nft` check;
+  Iran enforcement test panel reads named counters in real time; peer country breakdown
+  with Iran traffic share; action buttons; ANSI-stripped logs; dynamic status indicator.
+- `apply_firewall.sh` writes `/etc/khajubridge/state.json` on success for the console to read.
+- Example sudoers file documents exactly which passwordless sudo rules are needed.
+- Binary and package renamed from `khajunbgui` → `khajubridge`.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list of changes.
+
+---
 
 KhajuBridge is a Linux-native firewall layer and Conduit bridge for Iran, designed
 to improve Psiphon Conduit reliability, bypass DPI, and optimize traffic under
@@ -266,5 +307,4 @@ sudo journalctl -u conduit.service -n 20 --no-pager
 
 KhajuBridge is inspired by existing Windows-based firewall deployments for Psiphon
 Conduit and adapts the same core security model to Linux using nftables and systemd
-cgroups. Country breakdown in the web console uses the same peer data format as
-[conduit-manager](https://github.com/SamNet-dev/conduit-manager).
+cgroups.
