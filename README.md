@@ -1,5 +1,7 @@
 ## Conduit for Iran – KhajuBridge
 
+> **Note:** This repo was created to meet a need that wasn't being addressed — region-specific access for Conduit operators prioritizing Iran. The Psiphon team has since acknowledged this demand in [conduit#159](https://github.com/Psiphon-Inc/conduit/issues/159). If official support is added upstream, this project may no longer be necessary.
+
 ![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Linux-orange)
