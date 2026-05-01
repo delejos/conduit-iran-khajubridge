@@ -105,19 +105,27 @@ To persist across reboots, add the address to your network configuration
 
 ### 2. Run the Option A Script
 
-`scripts/apply_option_a.sh` applies SNAT and inbound rules in one step:
+`scripts/apply_option_a.sh` applies SNAT and inbound rules in one step.
 
+**IPv4 only:**
 ```bash
-sudo DEDICATED_IP=<your-ip> INTERFACE=<your-iface> \
+sudo DEDICATED_IP=<your-ipv4> INTERFACE=<your-iface> \
+  ./scripts/apply_option_a.sh
+```
+
+**IPv4 + IPv6:**
+```bash
+sudo DEDICATED_IP=<your-ipv4> INTERFACE=eth0 \
+    DEDICATED_IP6=<your-ipv6> INTERFACE6=eth0 \
   ./scripts/apply_option_a.sh
 ```
 
 The script will:
-- Verify the dedicated IP is assigned to the specified interface
+- Verify each dedicated IP is assigned to the specified interface
 - Resolve Conduit's cgroup ID dynamically (same method as `apply_firewall.sh`)
-- Install `ip conduit_nat` table with cgroup-scoped SNAT
+- Install `ip conduit_nat` (and `ip6 conduit_nat6` if IPv6 is configured) with cgroup-scoped SNAT
 - Add inbound rules to `inet khajubridge input` allowing only Iran CIDRs to
-  reach the dedicated IP, dropping everything else
+  reach the dedicated IP(s), dropping everything else
 - Print verification and rollback commands on completion
 
 ### 3. Persist the Configuration
@@ -160,7 +168,7 @@ sudo nft list chain inet khajubridge input
 - Option A does not require port forwarding
 - Option A does not expose new listening services
 - Option A affects only the Conduit service; other system traffic is unchanged
-- IPv6 is not covered by Option A by default
+- IPv6 is supported via `DEDICATED_IP6` + `INTERFACE6`; omit to skip IPv6
 
 ---
 
@@ -169,7 +177,8 @@ sudo nft list chain inet khajubridge input
 **Full rollback (removes all Option A logic):**
 
 ```bash
-sudo nft delete table ip conduit_nat
+sudo nft delete table ip  conduit_nat   2>/dev/null || true
+sudo nft delete table ip6 conduit_nat6  2>/dev/null || true
 sudo nft flush chain inet khajubridge input
 sudo ./scripts/apply_firewall.sh   # re-apply Layer 1 cleanly
 ```
@@ -177,7 +186,8 @@ sudo ./scripts/apply_firewall.sh   # re-apply Layer 1 cleanly
 **Disable SNAT only (keep inbound rules):**
 
 ```bash
-sudo nft delete table ip conduit_nat
+sudo nft delete table ip  conduit_nat  2>/dev/null || true
+sudo nft delete table ip6 conduit_nat6 2>/dev/null || true
 ```
 
 Effect: Conduit reverts to the primary IP; inbound rules remain but no longer

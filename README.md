@@ -114,35 +114,46 @@ See [`console/`](console/) for installation and configuration.
 
 ---
 
-## ⚡ Quick Start (Manual)
+## ⚡ Quick Start
 
 After cloning, make scripts executable:
 
 ```bash
-chmod +x scripts/*.sh
+chmod +x scripts/*.sh install.sh console/install.sh
 ```
 
+**One-step install** (Debian/Ubuntu/RHEL/Arch/Alpine — detects your distro):
+
 ```bash
-# 1. Install dependencies
-sudo apt install nftables curl
+sudo bash install.sh
+```
 
-# 2. Fetch Iran CIDR ranges
-sudo ./scripts/update_region_cidrs.sh
+This installs nftables + curl for your distro, deploys scripts to
+`/opt/khajubridge/`, registers all systemd units, and installs sudoers rules.
 
-# 3. Apply firewall rules
-sudo ./scripts/apply_firewall.sh
+**Then:**
 
-# 4. (Optional) Enable weekly CIDR refresh
-sudo cp systemd/khajubridge-cidr-refresh.service /etc/systemd/system/
-sudo cp systemd/khajubridge-cidr-refresh.timer   /etc/systemd/system/
-sudo systemctl daemon-reload
+```bash
+# 1. Fetch Iran CIDR ranges
+sudo /opt/khajubridge/scripts/update_region_cidrs.sh
+
+# 2. Apply firewall rules
+sudo /opt/khajubridge/scripts/apply_firewall.sh
+
+# 3. Enable weekly CIDR refresh
 sudo systemctl enable --now khajubridge-cidr-refresh.timer
 
-# 5. (Optional) Auto-reapply on Conduit restart
-sudo mkdir -p /etc/systemd/system/conduit.service.d
-sudo cp systemd/conduit.service.d/khajubridge.conf \
-  /etc/systemd/system/conduit.service.d/
-sudo systemctl daemon-reload
+# 4. Verify
+sudo nft list table inet khajubridge
+cat /etc/khajubridge/state.json
+```
+
+**Manual install** (if you prefer not to run the installer):
+
+```bash
+sudo apt install nftables curl
+sudo ./scripts/update_region_cidrs.sh
+sudo ./scripts/apply_firewall.sh
 ```
 
 ---
@@ -217,14 +228,15 @@ Deployed via `scripts/apply_option_a.sh`. See [`docs/OPTION_A_DEDICATED_IP.md`](
 ## 📁 Project Layout
 
 ```
-nftables/conduit-region.nft                 nftables template (placeholders injected at runtime)
-scripts/apply_firewall.sh                   core: resolve cgroup, load rules, populate CIDR sets
+install.sh                                  top-level installer (multi-distro: apt/dnf/pacman/apk)
+nftables/conduit-region.nft                 nftables template (named counters, rate limits, placeholders)
+scripts/apply_firewall.sh                   core: resolve cgroup, load rules, populate CIDR sets, write state.json
 scripts/update_region_cidrs.sh              fetch Iran CIDRs atomically from multiple sources
-scripts/apply_option_a.sh                   Option A: cgroup SNAT + dedicated IP inbound rules
+scripts/apply_option_a.sh                   Option A: cgroup SNAT + dedicated IP inbound rules (IPv4 + IPv6)
 systemd/conduit.service.d/khajubridge.conf  drop-in: re-apply firewall on Conduit restart
 systemd/khajubridge-cidr-refresh.service    oneshot: update CIDRs + re-apply firewall
 systemd/khajubridge-cidr-refresh.timer      weekly timer for the above
-console/                                    optional Go web console
+console/                                    optional Go web console (Iran test panel, assurance, peer breakdown)
 docs/OPTION_A_DEDICATED_IP.md              Layer 2 deployment guide
 docs/sudoers.d/khajubridge                 example passwordless sudo rules
 ```

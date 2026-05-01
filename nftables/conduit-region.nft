@@ -8,6 +8,12 @@
 define CONDUIT_CGROUP_ID   = __CGROUP_ID__
 define CONDUIT_CGROUP_PATH = "__CGROUP_PATH__"
 
+# Anti-abuse rate limit: max UDP packets/second accepted from Iran IPs (global, not per-source).
+# Excess packets fall through to the drop rule. Tune to your node's capacity.
+# To disable: remove the "limit rate ..." clause from the accept rules below.
+define IRAN_UDP_RATE  = 100000/second
+define IRAN_UDP_BURST = 200000
+
 table inet khajubridge {
 
   #
@@ -24,9 +30,18 @@ table inet khajubridge {
   }
 
   #
-  # Inbound filtering — ONLY traffic destined to Conduit sockets (socket cgroupv2)
-  # Goal: allow Iran-only access to Conduit sockets (UDP + TCP),
-  # regardless of which ports Conduit opens.
+  # Named counters — readable by the web console's Iran test panel without
+  # parsing the full ruleset output.
+  #
+  counter iran_udp_v4_accepted  { comment "UDP from Iran IPv4 → Conduit socket (accepted)" }
+  counter iran_udp_v6_accepted  { comment "UDP from Iran IPv6 → Conduit socket (accepted)" }
+  counter iran_udp_v4_ratelimit { comment "UDP from Iran IPv4 dropped by rate limit" }
+  counter iran_udp_v6_ratelimit { comment "UDP from Iran IPv6 dropped by rate limit" }
+  counter non_iran_udp_dropped  { comment "UDP to Conduit socket from outside Iran (dropped)" }
+  counter non_iran_tcp_dropped  { comment "TCP to Conduit socket from outside Iran (dropped)" }
+
+  #
+  # Inbound filtering — scoped to Conduit sockets via socket cgroupv2
   #
   chain input {
     type filter hook input priority 0;
@@ -39,15 +54,31 @@ table inet khajubridge {
     ct state established,related accept
     ct state invalid drop
 
-    # Allow UDP packets reaching Conduit-owned sockets from Iran (IPv4/IPv6)
-    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip  saddr @region_ipv4 counter accept
-    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip6 saddr @region_ipv6 counter accept
+    # Allow Iran IPv4 UDP → Conduit sockets, with rate limit and named counter
+    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip saddr @region_ipv4 \
+      limit rate $IRAN_UDP_RATE burst $IRAN_UDP_BURST packets \
+      counter name iran_udp_v4_accepted accept
 
-    # Drop UDP packets reaching Conduit-owned sockets from everywhere else
-    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH counter drop
+    # Drop Iran IPv4 UDP that exceeded the rate limit (falls through from above)
+    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip saddr @region_ipv4 \
+      counter name iran_udp_v4_ratelimit drop
 
-    # Drop TCP packets reaching Conduit-owned sockets from everywhere else
-    meta l4proto tcp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH counter drop
+    # Allow Iran IPv6 UDP → Conduit sockets, with rate limit and named counter
+    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip6 saddr @region_ipv6 \
+      limit rate $IRAN_UDP_RATE burst $IRAN_UDP_BURST packets \
+      counter name iran_udp_v6_accepted accept
+
+    # Drop Iran IPv6 UDP that exceeded the rate limit
+    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip6 saddr @region_ipv6 \
+      counter name iran_udp_v6_ratelimit drop
+
+    # Drop all remaining UDP to Conduit sockets (non-Iran)
+    meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH \
+      counter name non_iran_udp_dropped drop
+
+    # Drop all TCP to Conduit sockets (non-Iran; established TCP is allowed above via conntrack)
+    meta l4proto tcp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH \
+      counter name non_iran_tcp_dropped drop
   }
 
   #

@@ -341,6 +341,87 @@ func statusDotClass(status string) string {
 	}
 }
 
+// ── Iran enforcement test — reads named nft counters ─────────────────────────
+// Counter names match the named counters in nftables/conduit-region.nft.
+// This requires the named-counter feature (nftables ≥ 0.9.3 / kernel ≥ 5.10).
+
+type IranCounters struct {
+	V4Accepted   uint64
+	V6Accepted   uint64
+	V4RateLimit  uint64
+	V6RateLimit  uint64
+	NonIranUDP   uint64
+	NonIranTCP   uint64
+	Available    bool
+	TotalIran    uint64
+	TotalBlocked uint64
+	AcceptPct    float64
+}
+
+func getIranCounters() IranCounters {
+	v := cached("iran_counters", 10*time.Second, func() interface{} {
+		return fetchIranCounters()
+	})
+	return v.(IranCounters)
+}
+
+func fetchIranCounters() IranCounters {
+	out, code := run("nft", "list", "counters", "table", "inet", "khajubridge")
+	if code != 0 {
+		// Fallback: try listing the full table (older nftables)
+		out, code = run("nft", "list", "table", "inet", "khajubridge")
+		if code != 0 {
+			return IranCounters{}
+		}
+	}
+
+	c := IranCounters{Available: true}
+	parseCounter := func(name string) uint64 {
+		// Matches: "counter iran_udp_v4_accepted { packets 123 bytes 456 }"
+		// or inline in ruleset: "counter name iran_udp_v4_accepted packets 123 bytes 456"
+		patterns := []string{
+			`counter\s+` + regexp.QuoteMeta(name) + `\s*\{[^}]*packets\s+(\d+)`,
+			`counter\s+name\s+` + regexp.QuoteMeta(name) + `\s+packets\s+(\d+)`,
+		}
+		for _, p := range patterns {
+			re := regexp.MustCompile(p)
+			if m := re.FindStringSubmatch(out); len(m) > 1 {
+				v, _ := strconv.ParseUint(m[1], 10, 64)
+				return v
+			}
+		}
+		return 0
+	}
+
+	c.V4Accepted = parseCounter("iran_udp_v4_accepted")
+	c.V6Accepted = parseCounter("iran_udp_v6_accepted")
+	c.V4RateLimit = parseCounter("iran_udp_v4_ratelimit")
+	c.V6RateLimit = parseCounter("iran_udp_v6_ratelimit")
+	c.NonIranUDP = parseCounter("non_iran_udp_dropped")
+	c.NonIranTCP = parseCounter("non_iran_tcp_dropped")
+
+	c.TotalIran = c.V4Accepted + c.V6Accepted
+	c.TotalBlocked = c.NonIranUDP + c.NonIranTCP + c.V4RateLimit + c.V6RateLimit
+	total := c.TotalIran + c.TotalBlocked
+	if total > 0 {
+		c.AcceptPct = float64(c.TotalIran) / float64(total) * 100
+	}
+	return c
+}
+
+func fmtPkts(n uint64) string {
+	switch {
+	case n >= 1_000_000_000:
+		return fmt.Sprintf("%.2fG", float64(n)/1e9)
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.2fM", float64(n)/1e6)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fK", float64(n)/1e3)
+	default:
+		return fmt.Sprintf("%d", n)
+	}
+}
+
 // ── Country breakdown from traffic_stats/cumulative_data ──────────────────────
 // File format: country|from_bytes|to_bytes  (borrowed from conduit-manager)
 
@@ -605,6 +686,10 @@ pre{margin:0;padding:12px;font-size:12px;color:#b9f6c6;font-family:ui-monospace,
   Loading overview…
  </div>
 
+ <div id="iran-test" hx-get="/iran-test" hx-trigger="load, every 10s">
+  Loading Iran test…
+ </div>
+
  <div id="peers" hx-get="/peers" hx-trigger="load, every 30s">
   Loading peer stats…
  </div>
@@ -745,6 +830,77 @@ func peersHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, renderTable("Outbound Peers (Top 10)", ps.Outbound, ps.IranOutPct))
 }
 
+func iranTestHandler(w http.ResponseWriter, r *http.Request) {
+	c := getIranCounters()
+
+	if !c.Available {
+		fmt.Fprint(w, `
+<div class="section">Iran Enforcement Test</div>
+<div class="help">Could not read nft counters — firewall may not be applied yet.</div>`)
+		return
+	}
+
+	statusLabel := "ACTIVE"
+	statusDot := "good"
+	statusHelp := "Iran traffic is being accepted and non-Iran is being blocked."
+	if c.TotalIran == 0 && c.TotalBlocked == 0 {
+		statusLabel = "NO TRAFFIC YET"
+		statusDot = "unknown"
+		statusHelp = "Counters are zero — no traffic has been seen yet since last firewall apply."
+	} else if c.TotalIran == 0 {
+		statusLabel = "NO IRAN TRAFFIC"
+		statusDot = "unknown"
+		statusHelp = "Non-Iran traffic is being blocked but no Iran traffic has been accepted yet."
+	}
+
+	rateLimited := c.V4RateLimit + c.V6RateLimit
+	rateLimitNote := ""
+	if rateLimited > 0 {
+		rateLimitNote = fmt.Sprintf(` <span style="color:var(--bad)">(%s rate-limited)</span>`, fmtPkts(rateLimited))
+	}
+
+	fmt.Fprintf(w, `
+<div class="section">Iran Enforcement Test</div>
+<div class="help">Live nftables counter read — updates every 10 s.</div>
+<div class="card">
+ <div class="assurance">
+  <div class="kv">
+   <div class="key">Status</div>
+   <div class="val"><span class="dot %s"></span><span class="status">%s</span></div>
+  </div>
+  <div class="kv">
+   <div class="key">Iran accepted (v4)</div>
+   <div class="val iran">%s pkts%s</div>
+  </div>
+  <div class="kv">
+   <div class="key">Iran accepted (v6)</div>
+   <div class="val iran">%s pkts</div>
+  </div>
+  <div class="kv">
+   <div class="key">Non-Iran UDP dropped</div>
+   <div class="val" style="color:var(--bad)">%s pkts</div>
+  </div>
+  <div class="kv">
+   <div class="key">Non-Iran TCP dropped</div>
+   <div class="val" style="color:var(--bad)">%s pkts</div>
+  </div>
+  <div class="kv">
+   <div class="key">Iran share of all traffic</div>
+   <div class="val">%.1f%%</div>
+  </div>
+ </div>
+ <div style="margin-top:8px;font-size:11px;color:var(--muted)">%s</div>
+</div>`,
+		statusDot, statusLabel,
+		fmtPkts(c.V4Accepted), rateLimitNote,
+		fmtPkts(c.V6Accepted),
+		fmtPkts(c.NonIranUDP),
+		fmtPkts(c.NonIranTCP),
+		c.AcceptPct,
+		statusHelp,
+	)
+}
+
 func logsHandler(w http.ResponseWriter, r *http.Request) {
 	out, _ := run("sudo", "-n", "/bin/journalctl", "-u", conduitUnit, "-n", journalTail, "--no-pager")
 	fmt.Fprint(w, template.HTMLEscapeString(stripAnsi(out)))
@@ -793,6 +949,7 @@ func main() {
 	mux.HandleFunc("/status-card", statusCardHandler)
 	mux.HandleFunc("/assurance", assuranceHandler)
 	mux.HandleFunc("/overview", overviewHandler)
+	mux.HandleFunc("/iran-test", iranTestHandler)
 	mux.HandleFunc("/peers", peersHandler)
 	mux.HandleFunc("/logs", logsHandler)
 	mux.HandleFunc("/action/", actionHandler)
