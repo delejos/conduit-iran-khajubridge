@@ -34,6 +34,11 @@ table inet khajubridge {
 
     iif lo accept
 
+    # Allow established/related first so Conduit's outbound TCP replies are never dropped.
+    # This must come before any socket-scoped drop rules.
+    ct state established,related accept
+    ct state invalid drop
+
     # Allow UDP packets reaching Conduit-owned sockets from Iran (IPv4/IPv6)
     meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip  saddr @region_ipv4 counter accept
     meta l4proto udp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH ip6 saddr @region_ipv6 counter accept
@@ -43,10 +48,6 @@ table inet khajubridge {
 
     # Drop TCP packets reaching Conduit-owned sockets from everywhere else
     meta l4proto tcp socket cgroupv2 level 2 $CONDUIT_CGROUP_PATH counter drop
-
-    # Conntrack LAST — must not bypass socket filtering
-
-    ct state established,related accept
   }
 
   #

@@ -1,0 +1,12 @@
+[Unit]
+Description=KhajuBridge — weekly Iran CIDR refresh
+
+[Timer]
+# Runs every Sunday at 03:00 UTC. Randomized 1-hour delay avoids thundering herd
+# if multiple nodes share the same schedule.
+OnCalendar=Sun *-*-* 03:00:00
+RandomizedDelaySec=3600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

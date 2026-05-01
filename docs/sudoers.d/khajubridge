@@ -1,0 +1,26 @@
+# /etc/sudoers.d/khajubridge
+#
+# Passwordless sudo rules required by KhajuBridge scripts and the web console.
+# Install: sudo visudo -f /etc/sudoers.d/khajubridge
+#          (or: sudo cp this file /etc/sudoers.d/khajubridge && sudo chmod 440 /etc/sudoers.d/khajubridge)
+#
+# Replace %khajubridge with the actual user or group running the console / scripts.
+# For the console daemon (khajubridge.service), the User= in the service file must match.
+
+# Allow the khajubridge group to run nft commands without a password
+%khajubridge ALL=(root) NOPASSWD: /usr/sbin/nft
+
+# Allow journalctl access scoped to the conduit unit
+%khajubridge ALL=(root) NOPASSWD: /bin/journalctl -u conduit.service *
+%khajubridge ALL=(root) NOPASSWD: /bin/journalctl -u conduit.service
+
+# Allow apply_firewall.sh and update_region_cidrs.sh
+%khajubridge ALL=(root) NOPASSWD: /opt/khajubridge/scripts/apply_firewall.sh
+%khajubridge ALL=(root) NOPASSWD: /opt/khajubridge/scripts/update_region_cidrs.sh
+
+# Allow systemctl status/restart for conduit only
+%khajubridge ALL=(root) NOPASSWD: /bin/systemctl is-active conduit.service
+%khajubridge ALL=(root) NOPASSWD: /bin/systemctl status conduit.service
+%khajubridge ALL=(root) NOPASSWD: /bin/systemctl restart conduit.service
+%khajubridge ALL=(root) NOPASSWD: /bin/systemctl start conduit.service
+%khajubridge ALL=(root) NOPASSWD: /bin/systemctl stop conduit.service

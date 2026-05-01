@@ -1,0 +1,13 @@
+[Unit]
+Description=KhajuBridge Web Console
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/khajubridge
+EnvironmentFile=/etc/khajubridge/console.env
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

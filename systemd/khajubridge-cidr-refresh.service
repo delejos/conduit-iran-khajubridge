@@ -1,0 +1,11 @@
+[Unit]
+Description=KhajuBridge — refresh Iran CIDR lists and re-apply firewall
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/khajubridge/scripts/update_region_cidrs.sh
+ExecStartPost=/opt/khajubridge/scripts/apply_firewall.sh
+StandardOutput=journal
+StandardError=journal
