@@ -2,12 +2,16 @@
 
 ## TL;DR: This is **not** a plug-and-play VPN firewall, and all changes require explicit operator action.
 
+KhajuBridge is a Linux-native firewall layer and Conduit bridge for Iran, designed
+to improve Psiphon Conduit reliability, bypass DPI, and optimize traffic under
+Iranian network censorship.
 
-KhajuBridge is a Linux-native firewall layer and Conduit bridge for Iran, designed to improve Psiphon Conduit reliability, bypass DPI, and optimize traffic under Iranian network censorship.
+It provides region-aware connection prioritization for Conduit by using nftables and
+systemd cgroup scoping, allowing high-bandwidth TCP access while selectively enabling
+UDP where it is most effective inside Iran.
 
-It provides region-aware connection prioritization for Conduit by using nftables and systemd cgroup scoping, allowing high-bandwidth TCP access while selectively enabling UDP where it is most effective inside Iran.
-
-KhajuBridge mirrors the behavior of existing Psiphon Conduit firewall deployments without modifying Conduit itself.
+KhajuBridge mirrors the behavior of existing Psiphon Conduit firewall deployments
+without modifying Conduit itself.
 
 KhajuBridge is a firewall wrapper (scripts + nftables rules), not a compiled build. You need:
 
@@ -18,274 +22,237 @@ KhajuBridge is a firewall wrapper (scripts + nftables rules), not a compiled bui
   - default expected unit name: `conduit.service`
 - `curl` (used by `scripts/update_region_cidrs.sh` to fetch CIDR lists)
 
+---
+
 ## Conduit Optimization for Iran
 
-KhajuBridge is specifically designed to operate under Iranian network conditions, where aggressive filtering, throttling, and DPI affect Conduit performance.
+KhajuBridge is specifically designed to operate under Iranian network conditions,
+where aggressive filtering, throttling, and DPI affect Conduit performance.
 
+---
 
-――――――――――――――――――――――――――――――
+## 🚀 Overview
 
-🚀 Overview
+KhajuBridge provides a transparent, non-invasive way to apply region-based network
+controls to Psiphon Conduit on Linux systems.
 
-KhajuBridge provides a transparent, non-invasive way to apply region-based network controls to Psiphon Conduit on Linux systems.
+KhajuBridge improves Conduit behavior under Iranian network conditions but does not,
+by itself, provide strict Iran-only exclusivity. Optional deployment layers can be
+used to enforce stronger regional isolation when required.
 
-KhajuBridge improves Conduit behavior under Iranian network conditions but does not, by itself, provide strict Iran-only exclusivity. Optional deployment layers can be used to enforce stronger regional isolation when required.
+Instead of patching or wrapping Conduit, KhajuBridge enforces policy entirely at the
+firewall level. Rules are scoped specifically to the Conduit process using its
+systemd cgroup, ensuring:
 
-Instead of patching or wrapping Conduit, KhajuBridge enforces policy entirely at the firewall level. Rules are scoped specifically to the Conduit process using its systemd cgroup, ensuring:
-
-•	No port-based assumptions
-•	No UID-based filtering
-•	No impact on other system traffic
+- No port-based assumptions
+- No UID-based filtering
+- No impact on other system traffic
 
 The firewall can be safely applied, updated, or removed at any time.
 
-――――――――――――――――――――――――――――――
+---
 
-⚙️ How It Works
-
-Optional Web Console
-
-KhajuBridge includes an optional, lightweight web console for local monitoring and basic operations
-(firewall apply, CIDR updates, Conduit status).
-
-- LAN-only by default
-- Stateless
-- Configured via an environment file
-- Designed for trusted networks
-
-See [`console/`](console/) for installation, configuration, and screenshots.
-
+## ⚙️ How It Works
 
 KhajuBridge uses a three-stage model:
 
-1. Fetch Region CIDR Ranges
-A helper script downloads IPv4 and IPv6 CIDR ranges for one or more regions from public sources and stores them locally.
+**1. Fetch Region CIDR Ranges**
+A helper script downloads IPv4 and IPv6 CIDR ranges for Iran from multiple public
+sources. CIDRs are written atomically — if a fetch fails or returns fewer than the
+minimum expected entries, the existing file is preserved.
 
-These CIDRs are treated as dynamic data and can be updated independently of firewall rules.
+**2. Define Firewall Policy**
+An nftables ruleset defines traffic handling for Conduit only:
 
-2. Define Firewall Policy
-An nftables ruleset defines outbound traffic handling for Conduit only:
+- TCP from Conduit: allowed globally (mirrors Windows Psiphon behavior)
+- UDP from Conduit: allowed only to Iran CIDRs
+- Inbound to Conduit: allowed from Iran CIDRs only; all other UDP/TCP dropped
+- All other system traffic: unaffected (policy accept)
 
-•	TCP traffic from Conduit is allowed globally
-•	UDP traffic from Conduit is allowed only to configured regional CIDRs
-•	All other UDP traffic from Conduit is dropped
-•	All other system traffic is unaffected (policy accept)
-
-No inbound rules are required; Conduit is outbound-only.
-
-3. Apply Rules Safely
+**3. Apply Rules Safely**
 A helper script:
 
-•	Dynamically resolves Conduit’s systemd cgroup ID
-•	Injects it into the nftables template at runtime
-•	Replaces only the KhajuBridge nftables table (never the global ruleset)
-•	Bulk-loads CIDR sets efficiently
-•	Can be safely re-run at any time
+- Dynamically resolves Conduit's systemd cgroup ID at runtime
+- Injects it into the nftables template
+- Replaces only the `inet khajubridge` table (never the global ruleset)
+- Bulk-loads CIDR sets efficiently
+- Writes `/etc/khajubridge/state.json` on success (timestamp, ruleset hash, CIDR counts)
+- Can be safely re-run at any time
 
-――――――――――――――――――――――――――――――
+### Optional Web Console
 
-✨ Features
+KhajuBridge includes an optional, lightweight web console for local monitoring:
 
-•	Region-Restricted UDP
-CIDR-based allowlists for precise geographic control
+- Real assurance panel (live enforcement status, last apply time, ruleset hash)
+- Conduit stats, peer country breakdown with Iran share %
+- Action buttons: Apply Firewall, Update CIDRs, Restart Conduit
+- LAN-only, stateless, environment-configured
 
-•	Global TCP Connectivity
-Matches existing Windows firewall behavior
+See [`console/`](console/) for installation and configuration.
 
-•	Process-Scoped Filtering
-Uses systemd cgroups instead of ports or UIDs
+---
 
-•	Dual-Stack Support
-Full IPv4 and IPv6 support
+## ✨ Features
 
-•	High Performance
-nftables interval sets for efficient lookups
+- **Region-Restricted UDP** — CIDR-based allowlists for precise geographic control
+- **Global TCP Connectivity** — matches existing Windows Psiphon firewall behavior
+- **Process-Scoped Filtering** — uses systemd cgroups instead of ports or UIDs
+- **Dual-Stack Support** — full IPv4 and IPv6 support
+- **High Performance** — nftables interval sets for efficient CIDR lookups
+- **Non-Invasive** — does not modify, wrap, or patch Psiphon Conduit
+- **Auto-Reapply on Restart** — systemd drop-in re-applies rules when Conduit restarts
+- **Weekly CIDR Refresh** — optional systemd timer keeps Iran IP ranges up to date
 
-•	Non-Invasive
-Does not modify, wrap, or patch Psiphon Conduit
+---
 
-•	Distro-Friendly
-Designed and tested on Debian-based systems
+## 🛠️ Requirements
 
-――――――――――――――――――――――――――――――
+- Linux system with nftables support
+- systemd-based distribution (Debian 11/12 or compatible)
+- Root or sudo privileges
+- Psiphon Conduit running as a systemd service (`conduit.service`)
 
-🛠️ Requirements
+---
 
-•	Linux system with nftables support
-•	systemd-based distribution
-•	Debian 11 / 12 or compatible
-•	Root or sudo privileges
-•	Psiphon Conduit installed and running as a systemd service (`conduit.service`)
+## ⚡ Quick Start (Manual)
 
-――――――――――――――――――――――――――――――
+After cloning, make scripts executable:
 
-⚡ Quick Start (Manual)
+```bash
+chmod +x scripts/*.sh
+```
 
-1. Install dependencies
+```bash
+# 1. Install dependencies
 sudo apt install nftables curl
 
-2. Fetch region CIDR ranges
+# 2. Fetch Iran CIDR ranges
 sudo ./scripts/update_region_cidrs.sh
 
-3. Apply firewall rules
+# 3. Apply firewall rules
 sudo ./scripts/apply_firewall.sh
 
-4. Verify
-sudo nft list table inet khajubridge
-sudo nft list chain inet khajubridge output
-sudo journalctl -u conduit.service -n 20 --no-pager
+# 4. (Optional) Enable weekly CIDR refresh
+sudo cp systemd/khajubridge-cidr-refresh.service /etc/systemd/system/
+sudo cp systemd/khajubridge-cidr-refresh.timer   /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now khajubridge-cidr-refresh.timer
 
-After cloning the repository, ensure scripts are executable:
-chmod +x scripts/*.sh
+# 5. (Optional) Auto-reapply on Conduit restart
+sudo mkdir -p /etc/systemd/system/conduit.service.d
+sudo cp systemd/conduit.service.d/khajubridge.conf \
+  /etc/systemd/system/conduit.service.d/
+sudo systemctl daemon-reload
+```
 
-## Security & Operational Safety
+---
+
+## 🔒 Security & Operational Safety
 
 ⚠️ **Important:** This project interacts with system-level networking and firewall components.
 
 - Review all changes carefully before applying them.
 - Test updates in a non-production or isolated environment first.
 - Ensure you have console or out-of-band access before applying firewall changes remotely.
+- See [`docs/sudoers.d/khajubridge`](docs/sudoers.d/khajubridge) for the exact
+  sudo rules required by the scripts and console.
 
 Please do **not** include secrets, personal information, or live system data in issues or pull requests.  
 See [`SECURITY.md`](SECURITY.md) for responsible disclosure guidelines.
 
+---
 
-――――――――――――――――――――――――――――――
+## 🛡️ Safety & Modes
 
-🛡️ Safety & Modes
+**Current Mode (Layer 1 — Default)**
+- TCP: allowed globally
+- UDP from Conduit: allowed only to Iran CIDRs
+- Inbound to Conduit: allowed from Iran CIDRs; all other dropped
+- All other system traffic: unaffected (policy accept)
 
-Current Mode (Normal)
-•	TCP: allowed globally
-•	UDP: allowed only to configured regional CIDRs (IPv4 + IPv6)
-•	All other system traffic: unaffected (policy accept)
+**Layer 2 / Option A — Strict Iran-Only**
+- Adds dedicated IP + SNAT for hard network-layer enforcement
+- See `docs/OPTION_A_DEDICATED_IP.md`
 
-Future Mode (Planned)
-•	Strict mode where both TCP and UDP are region-restricted
-
-Notes
-•	KhajuBridge only affects traffic originating from the Conduit service (scoped by systemd cgroup).
-•	CIDR lists change over time; regular updates are recommended.
-•	Firewall rules can be removed by deleting the `inet khajubridge` table:
-  sudo nft delete table inet khajubridge
-•	Always test firewall changes on non-critical systems first.
-
-――――――――――――――――――――――――――――――
-
-🌍 Deployment Options
-
-KhajuBridge is intentionally designed as a layered system. Each layer addresses a different class of operational requirement and can be used independently or together.
+**Notes**
+- KhajuBridge only affects traffic scoped to the Conduit systemd cgroup.
+- CIDR lists change over time; weekly automated refresh is recommended.
+- Rules can be removed: `sudo nft delete table inet khajubridge`
+- Always test firewall changes on non-critical systems first.
 
 ---
+
+## 🌍 Deployment Options
 
 ### Layer 1 — Process-Scoped Traffic Shaping (Default)
 
-This is the core KhajuBridge model and the default mode of operation.
-
-This layer:
-
-• Improves Conduit reliability under Iranian network conditions  
-• Reduces wasted or ineffective UDP traffic  
-• Mirrors Psiphon’s existing Windows firewall behavior  
-• Applies policy at the firewall level without modifying Conduit  
-• Uses systemd cgroup scoping instead of ports or UIDs  
-
-This mode is safe, portable, and non-invasive, and is suitable for most deployments.
-
-Layer 1 remains the default and recommended starting point.
-
----
+The core KhajuBridge model. Safe, portable, non-invasive, and suitable for most
+deployments. Improves Conduit reliability without strict regional exclusivity.
 
 ### Layer 2 — Network Identity Isolation (Option A)
 
-Layer 2 adds strict regional exclusivity by introducing a dedicated network identity for Conduit.
+Adds strict Iran-only enforcement via a dedicated IP and cgroup-scoped SNAT.
+Intended for deployments where hard regional exclusivity is a requirement.
 
-This layer:
+Deployed via `scripts/apply_option_a.sh`. See [`docs/OPTION_A_DEDICATED_IP.md`](docs/OPTION_A_DEDICATED_IP.md).
 
-• Makes “Iran-only” a hard, enforceable property  
-• Gives Conduit a distinct local IP identity  
-• Prevents accidental or structural bypass  
-• Enforces policy at the network-identity level  
+---
 
-Because Conduit does not bind to a specific IP or port, this layer is implemented using:
+## 🧠 Design Notes
 
-• Source NAT (SNAT)  
-• A dedicated local IP  
-• Firewall rules scoped to that IP  
+- **Outbound-only:** Conduit is outbound-only; output rules use `meta cgroup`.
+- **Inbound filtering:** Inbound rules use `socket cgroupv2` to scope to Conduit's sockets.
+- **Conntrack ordering:** `ct state established,related accept` runs before any drop
+  rules to ensure Conduit's outbound TCP replies are not blocked.
+- **No port filtering:** Conduit does not listen on a fixed port; filtering is not port-based.
+- **No hardcoding:** cgroup IDs are resolved dynamically at apply time and injected
+  into the nftables template.
+- **State file:** `apply_firewall.sh` writes `/etc/khajubridge/state.json` on
+  success, readable by the web console's assurance panel.
+- **Option A SNAT** uses `meta cgroup` (not UID) for consistency and to avoid
+  breakage when Conduit runs as root.
 
-Layer 2 is stronger and more restrictive, and is intended for deployments where strict Iran-only enforcement is required.
+---
 
-See: `docs/OPTION_A_DEDICATED_IP.md` (advanced deployment)
+## 📁 Project Layout
 
+```
+nftables/conduit-region.nft                 nftables template (placeholders injected at runtime)
+scripts/apply_firewall.sh                   core: resolve cgroup, load rules, populate CIDR sets
+scripts/update_region_cidrs.sh              fetch Iran CIDRs atomically from multiple sources
+scripts/apply_option_a.sh                   Option A: cgroup SNAT + dedicated IP inbound rules
+systemd/conduit.service.d/khajubridge.conf  drop-in: re-apply firewall on Conduit restart
+systemd/khajubridge-cidr-refresh.service    oneshot: update CIDRs + re-apply firewall
+systemd/khajubridge-cidr-refresh.timer      weekly timer for the above
+console/                                    optional Go web console
+docs/OPTION_A_DEDICATED_IP.md              Layer 2 deployment guide
+docs/sudoers.d/khajubridge                 example passwordless sudo rules
+```
 
-――――――――――――――――――――――――――――――
+---
 
-🧠 Design Notes
+## 🔍 Verification
 
-•	Outbound-only: Conduit is outbound-only; rules are applied in the `OUTPUT` hook (not `INPUT`).
-•	No port filtering: Conduit does not listen on ports; filtering is not port-based.
-•	Process scoping: Traffic is scoped using `meta cgroup` (systemd cgroup ID), not UID or ports.
-•	UDP allowlist: UDP is restricted using nftables CIDR sets (`region_ipv4`, `region_ipv6`).
-•	TCP global: TCP is unrestricted to match Windows firewall-style behavior.
-•	No hardcoding: cgroup IDs are resolved dynamically at apply time.
-• Dedicated-IP deployments may additionally use SNAT to enforce network-layer identity (see Deployment Options).
+```bash
+# Show active KhajuBridge rules
+sudo nft list table inet khajubridge
 
-Optional: Weekly CIDR Refresh (Advanced / Operator-Managed)
+# Confirm CIDR counts loaded
+sudo nft list set inet khajubridge region_ipv4 | wc -l
 
-For long-running or production deployments, operators may choose to periodically refresh regional CIDR lists (e.g. Iran IP ranges) to account for upstream allocation changes.
-This project intentionally does not enable automatic updates by default, to avoid introducing operational risk.
+# Check state file written by apply_firewall.sh
+cat /etc/khajubridge/state.json
 
-Recommended approach (operator-managed)
-
-Operators can implement a local systemd timer that:
-Fetches updated CIDR lists (e.g. weekly, not daily)
-Performs basic sanity checks (non-empty, reasonable size)
-Atomically replaces the CIDR files
-Re-applies nftables rules without restarting Conduit
-Does not reboot the system
-
-This automation should live outside the GitHub repository and be treated as a local operational addon.
-
-Important notes
-
-Automatic CIDR updates are optional
-No Conduit restart should be required
-Firewall rules should only be re-applied if the update succeeds
-Operators are responsible for validating their own data sources and update cadence
-This approach keeps the core setup stable while allowing experienced operators to opt into periodic maintenance if desired.
-
-――――――――――――――――――――――――――――――
-
-📁 Project Layout
-
-•	`nftables/conduit-region.nft`
-nftables template (not applied directly). Contains:
-•	`define CONDUIT_CGROUP = __CGROUP_ID__`
-
-•	`scripts/apply_firewall.sh`
-Loads firewall rules and populates CIDR sets safely:
-•	Validates template and placeholder
-•	Resolves Conduit cgroup ID via systemd + `/sys/fs/cgroup`
-•	Replaces only the `inet khajubridge` table (does not flush global ruleset)
-•	Bulk-loads CIDR sets and prints counts
-
-•	`scripts/update_region_cidrs.sh`
-Fetches/updates CIDR allowlists and writes to:
-•	`/etc/khajubridge/region_ipv4.cidr`
-•	`/etc/khajubridge/region_ipv6.cidr`
-
-――――――――――――――――――――――――――――――
-
-🔍 Verification
-
-Show active KhajuBridge rules:
-sudo nft list chain inet khajubridge output
-
-Confirm Conduit health:
+# Confirm Conduit health
 sudo systemctl status conduit.service --no-pager
 sudo journalctl -u conduit.service -n 20 --no-pager
+```
 
-――――――――――――――――――――――――――――――
+---
 
-📝 Credits
+## 📝 Credits
 
-KhajuBridge is inspired by existing Windows-based firewall deployments for Psiphon Conduit and adapts the same core security model to Linux using nftables and systemd cgroups.
+KhajuBridge is inspired by existing Windows-based firewall deployments for Psiphon
+Conduit and adapts the same core security model to Linux using nftables and systemd
+cgroups. Country breakdown in the web console uses the same peer data format as
+[conduit-manager](https://github.com/SamNet-dev/conduit-manager).
